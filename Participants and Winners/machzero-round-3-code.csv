@@ -1,0 +1,715 @@
+﻿Team,Submitted by,Sent (IST),Late,Link to your code,What you built,Changes from your plan,How to run & test it,Prototype / demo link (optional)
+CHACHA,Jayesh Choudhary,"8 Nov 2026, 2:01 pm IST",yes,"https://github.com/nuxt/nuxt/pull/36886, https://github.com/biomejs/biome/pull/12999","1. Nuxt
+
+What works
+
+We did the three steps in our plan:
+
+We removed the @internal tag. We removed it from usePrefetchScheduler in internal/prefetch-scheduler.ts and from prefetchGroup in internal/prefetch-util.ts.
+We added the public export chain. composables/preload.ts re-exports the two functions. Then composables/index.ts exports them. Then app/index.ts exports them from #app.
+We added the auto-import. In imports/presets.ts, we added the two names to the preset for #app/composables/preload.
+
+The key code change is the return type of usePrefetchScheduler. It was PrefetchScheduler. Now it is Pick<PrefetchScheduler, 'schedule' | 'promote'>. Thus, users can use only schedule and promote. They cannot use reset and resume, because Nuxt calls these functions automatically. This keeps the public API small, as our “API Surface” section says.
+
+Documentation. We added a new docs page, use-prefetch-scheduler.md. The page gives the signature, the task fields (key, priority, scope, group and run) and an example plugin. The plugin listens to link:prefetch and sends a $fetch request through schedule.
+
+Tests. We changed composables.test.ts so that it includes the two new public names. We changed prefetch.test.ts so that it uses the public return type, not the internal type. The unit tests, the two test/nuxt files and typecheck pass. We also did a check in a browser.
+
+What is still in progress
+The full test suite. We did not run the full suite, because our computer did not have sufficient memory. We must wait for the Nuxt CI result.
+The review comments from the bots. We must reply to these comments and fix any issues are pointed upon.
+
+What we did not get to:
+
+full test suite because of RAM issues
+
+2.Biome
+
+1. What we did
+
+We found a bug in the Biome Markdown formatter and fixed it.
+
+Bug: A list item can end with a blockquote. In that case, the formatter removed the blank line after the blockquote.
+Result of the bug: The next paragraph became part of the blockquote. On the second run, the formatter added > before that paragraph. So the formatter changed the meaning of the document, and the output was different on each run.
+Cause: The function list_ends_with_line_break checks the last block of the last list item. It only recognised leaf elements and list items. A blockquote is neither of these, so the function returned false. Four other parts of the formatter used this incorrect value. Each of those parts is correct by itself, so the error became visible only at the last step.
+1. Key code changes
+markdown/lists/block_list.rs (line 782): list_ends_with_line_break now calls block_ends_with_line_break.
+block_ends_with_line_break: It now has a condition for blockquotes. It returns true when a blockquote ends with a line break. It also supports nested structures.
+markdown/auxiliary/newline.rs: We did not change this file. It now gets the correct value, so it keeps the Newline node.
+
+Result: The output keeps the blank line, and the paragraph stays outside the blockquote. The second output is the same as the first output.
+
+1. What works
+The blank line after a blockquote at the end of a list item stays in the output.
+The formatter keeps the meaning of the document.
+The formatter gives the same output on each run.
+The repository CI/CD tests pass.
+Our end-to-end (e2e) tests in the browser pass.
+A maintainer approved the PR approximately 8 hours after we opened it.","1. Nuxt
+ - No implementation difference from round 2. Only dead ends or failures was to run the full test suite
+
+2. Biome
+- No implementation difference from round 2. No failures or dead ends. 
+- Maintainer has already approved changes and said that it will be available in the next release","Nuxt
+
+Necessary: Node.js 22 or later, and pnpm 12.16.1 (from packageManager in package.json).
+1. Get the PR branch
+bash
+Make sure that the last commit is 304d0bc feat: add prefetch public api.
+1. Install and prepare
+bash
+pnpm install
+pnpm dev:prepare
+1. Run the tests
+bash
+# Unit tests
+pnpm test:unit
+# The two runtime test files that we changed
+pnpm vitest run --project nuxt test/nuxt/prefetch.test.ts test/nuxt/composables.test.ts
+# Type check
+pnpm typecheck
+# Lint
+pnpm lint
+E2E test is given in demo.
+
+2. Biome
+Check out the PR: git fetch origin pull/12999/head:pr-12999, then git checkout pr-12999.
+Run the tests with cargo test -p biome_markdown_formatter. All tests must pass.
+Remove the fix. Restore block_list.rs from origin/main, then run cargo test -p biome_markdown_formatter blockquote_end_of_list_item. The test must fail. Run git checkout pr-12999 -- . to restore the fix.
+Tests and results
+Formatter test suite: Passed.
+New spec test for a blockquote at the end of a list item: Passed.
+New spec test for a hard break at the end of a list item: Passed.
+Updated snapshot quote_list_containers.md.snap: Correct. It keeps a blank line from its input.
+Second format run gives the same output: Passed.
+CI checks: Passed. CodSpeed shows no performance change.","https://drive.google.com/file/d/1pWA1J3AgBt0QwSLhPHp6j8UWtYaj8K9E/view?usp=sharing, https://drive.google.com/file/d/1AzIFSyqtAyhqV3euTbz4uDyrNSevlZbx/view?usp=sharing"
+Crazy coders,Yatish Ramesh Gowda,"8 Nov 2026, 1:58 pm IST",,https://github.com/YatishGowda09/WireViz/tree/main,"We implemented first-class visual grouping of connectors and cables into physical device    
+    enclosures (solving community Issue #478):
+  
+    1. Domain Data Model (wv_dataclasses.py):
+    - Introduced the `Group` dataclass (name, label, style, color, bgcolor, members).           
+    - Added `self.groups: Dict[str, Group]` storage to the `Harness` dataclass.
+                                                                                                
+    2. YAML Parser & Validation (wireviz.py):
+    - Extended the parser to process the declarative `groups:` block in input YAML files.       
+    - Added strict member validation ensuring grouped components exist in the harness,          
+    eliminating silent failures.
+  
+    3. Graphviz Rendering Engine (wv_harness.py):
+    - Modified `create_graph()` to dynamically wrap grouped connectors inside native Graphviz   
+    `subgraph cluster_<name>` blocks.
+    - Applied custom enclosure styling (dashed/solid borders, custom border colors, background  
+    fill colors, and labels).
+    - Maintained 100% backward compatibility: ungrouped connectors continue emitting at the root
+    level, and existing harnesses render unchanged.
+  
+    4. Real-World Working Prototypes:
+    - Created modular hardware test cases: an Arduino Uno + 16-pin LCD Display subassembly      
+    (`examples/arduino_demo.yml`) and an ESP32 IoT node with sensors and actuators
+    (`examples/demo-7.yml`). 
+  
+    What works:
+    - Full YAML parsing, validation, and Graphviz cluster subgraph generation.
+    - Cross-boundary wire routing and loop connections across enclosures.
+    - Automated test suite passes 100% (5/5 tests in `tests/test_groups.py`).
+  
+    Future scope / What we didn't get to:
+    - Multi-level nested groups (subgraphs inside subgraphs).
+    - Automated engine-level edge tension balancing to prevent spline crossing without manual 
+    pin ordering.","Our initial plan was to wrap grouped connectors inside Graphviz `subgraph cluster_*` blocks
+    and rely entirely on Graphviz's default layout algorithm to route wires cleanly. 
+  
+    Where we hit a bottleneck (The Wire Clustering / Spiderweb Bug):
+    When testing our grouping implementation against realistic, high-pin-density circuits 
+    (16-pin LCD subassembly in demo-sharan and ESP32 with sensors in demo-7), we hit severe
+    layout degradation: 
+    1. Enclosing nodes inside cluster boxes restricts Graphviz's vertical ranking degrees of
+    freedom.
+    2. Inverted wire-to-pin sequences created bezier spline crossings, turning inter-module     
+    wiring into a tangled spiderweb.
+    3. Full 16-pin connector tables ballooned vertically when unpopulated pins remained visible,
+    forcing steep wire angles and pin pinch points. 
+  
+    How we adapted:                                                                             
+    Rather than abandoning native Graphviz clusters, we diagnosed the layout engine mechanics   
+    and established four ergonomic wiring patterns:                                             
+    - Monotonic Pin Ordering: Strictly ordering conductor indexes to match connector pin rows,  
+    producing straight parallel splines with zero crossings.                                    
+    - Local Subassembly Loops (`loops:`): Routing common rails (GND, 5V) internally on the      
+    connector table rather than traversing long external cables.                                
+    - Pin Trimming (`hide_disconnected_pins: true`): Collapsing inactive pins to reduce         
+    connector table height.                                                                     
+    - Port Face Segregation: Splitting ingress power/data on the left face and downstream       
+    routing on the right face.","Prerequisites:                                                                              
+    Ensure Graphviz is installed on the host OS (`sudo apt install graphviz` on Ubuntu/Debian,  
+    `brew install graphviz` on macOS, or `winget install Graphviz.Graphviz` on Windows). Verify 
+    with `dot -V`.                                                                              
+                                                                                                
+    Setup & Test Steps:                                                                         
+    1. Clone the repository and enter the directory:                                            
+       git clone https://github.com/YatishGowda09/WireViz.git                                   
+       cd WireViz                                                                               
+                                                                                                
+    2. Create and activate a Python virtual environment:                                        
+       python3 -m venv .venv                                                                    
+       source .venv/bin/activate                                                                
+                                                                                                
+    3. Install in development/editable mode:                                                    
+       pip install -e . pytest                                                                  
+                                                                                                
+    4. Run the automated test suite:                                                            
+       pytest tests/test_groups.py                                                              
+       (Result: 5 passed - verifies schema parsing, domain instantiation, color parsing, and    
+       style comma-joining)                                                                     
+                                                                                                
+    5. Compile a prototype with modular grouping:                                               
+       wireviz examples/arduino_demo.yml                                                        
+       (Generates arduino_demo.png, arduino_demo.svg, arduino_demo.html, and                    
+       arduino_demo.bom.tsv showing physical Arduino Uno and LCD Module enclosures)",https://drive.google.com/file/d/1WQYanMRksXCr8UayCh17XyqeVPeoIYSJ/view?usp=drive_link
+Dhurandhar,Yangchen Sherpa,"8 Nov 2026, 2:13 pm IST",yes,https://github.com/shreyas-sridhar/langchain/blob/master/libs/core/langchain_core/language_models/_compat_bridge.py,"We successfully resolved LangChain Issue #41738(core: stream_events(version=""v3"") keeps only the last chunk's usage token details instead of summing them).What works:
+Updated `accumulate_usage` in `_compat_bridge.py` to replace dict.update() with LangChain's native `add_usage()helper. This ensures nested token dictionaries (such as cache read and reasoning/thinking tokens) are properly summed across chunks instead of being overwritten.
+Added a comprehensive Gemini multi-chunk regression test.(test_stream_events_v3_accumulates_gemini_usage_details) to validate proper multi-part streaming accumulation.
+ Evaluated additional edge cases (like Anthropic single-chunk formats), but scoped our final submission strictly to solving the multi-chunk accumulation bug and passing the core regression suite.","Our implementation closely followed our plan, but we streamlined our focus entirely onto correcting the inner dictionary merging mechanism using `add_usage()` rather than writing manual arithmetic overrides[cite: 7].
+Dead End Avoided:We initially experimented with a custom numerical wrapper function to sum tokens manually, but it introduced redundant code overhead and risked breaking provider-specific dictionary keys. We discarded that approach and utilized LangChain's built-in native utility for clean integration.","Steps to run the tests:
+ 1. Switch to your feature branch:
+  ```bash
+ git checkout fix-stream-events-usage-accumulation
+2. Execute the specific v3 streaming unit test using pytest:
+   ```bash
+   pytest tests/unit_tests/language_models/test_chat_model_v3_stream.py -k TestUsageTokenDetails
+Test Results:
+Status:PASSED
+Output confirms that multi-chunk token metrics and nested usage details accumulate correctly across the v3 streaming interface without data loss[cite: 1, 7].",
+Divergence zero,Prakyath Raj Rai,"8 Nov 2026, 1:47 pm IST",,NAH,NOTHIN,NONE,"We only  know that, the problem arises due to Mathematical Function Implemetation Bug in Symbolical Computation
+We just know that _eval_nseries() and similar trignometric functions will help to handle this.",None :{
+fsociety,Hardik Garg,"8 Nov 2026, 1:54 pm IST",,https://github.com/mortbopet/Ripes/pull/490,"We replaced the expression parser in the Ripes assembler so that expressions follow C-style operator precedence and are evaluated left to right. The key change is in src/assembler/expreval.cpp: the old right-recursive functions (rightRec, parseRight, parseLeft) are replaced by an ExprParser struct with one small function per precedence level (parseOr, parseAnd, parseAdditive, parseMultiplicative, parseSignExtend, parseUnary, parsePrimary), and a shared parseBinary loop that builds the tree from left to right. The public evaluate() now calls this parser. The expression tree types, the tree evaluation and every caller are unchanged. We also added a precedence test case (1+2*3+4 = 11) to test/tst_expreval.cpp.
+
+Everything works: precedence, left-to-right order, brackets, unary minus, & and |, and the existing error messages. The fix has been submitted upstream as PR #490 (for issue #489) and is waiting for the maintainer's review. Two things are deliberately left out. The header comment in expreval.h still describes the old behaviour, and we've asked the maintainer to update it, since it records their intent. We also didn't optimise away a ~1 µs per-expression slowdown, because it can't be measured when assembling a whole program.","The implementation followed our Round 2 plan: a recursive-descent parser that changes only the parsing step. We also tried a version written in the exact style of the old code (free functions that pass pos/depth around), compared the two, and kept the ExprParser struct because each precedence level is a short function that is easier to review. 
+
+We formatted it with the exact clang-format version the repo's CI uses (23.1.3).
+
+While coding we hit some dead ends. We expected 2(3) to show an error in the editor, but the tokenizer splits x(y) into two operands (the offset(register) syntax) before our code ever sees it. That's outside our scope, so we left the tokenizer alone and test both evaluate() on its own and the full assembler. 
+
+The maintainer's tests aren't built by default, and once built they failed to start until we set the Qt plugin path. Our memory benchmark showed memory is the same or lower, but each expression is about 1 µs slower, which we documented instead of hiding.","Build (needs Qt 6 and CMake):
+git clone --recursive -b added_precedence https://github.com/sasukeuchiha14/Ripes.git
+cd Ripes
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=<your Qt 6 path> -DRIPES_BUILD_TESTS=ON
+cmake --build build
+
+Manual check: open Ripes, paste this into the editor and run it. Each value is printed to the console:
+.data
+vals: .word 2*3+4, 10-2-3, -5+3, 8/4/2
+.text
+    la t0, vals
+    li t1, 4
+loop:
+    lw a0, 0(t0)
+    li a7, 1
+    ecall
+    li a0, 10
+    li a7, 11
+    ecall
+    addi t0, t0, 4
+    addi t1, t1, -1
+    bnez t1, loop
+    li a7, 10
+    ecall
+The original Ripes prints 14 11 -8 4. With our fix it prints 10 5 -2 1.
+
+Tests: run tst_expreval, tst_assembler, tst_riscv, tst_cosimulate, tst_reverse and tst_stall from build/test. On Windows, set QT_QPA_PLATFORM=offscreen and point QT_PLUGIN_PATH at Qt's plugins folder first.
+
+Results from our Round 2 plan: all 6 of the maintainer's suites pass (56/56 checks, 0 failures); our 22 edge cases pass; the app shows the corrected values; clang-format 23.1.3 reports no changes; and memory is the same or lower (about 8% fewer bytes per expression, identical peak when assembling whole programs).",https://drive.google.com/file/d/1JSOaI4pKDIyiYOmpDgKVTkYx5pd2611_/view?usp=sharing
+Init to Win It,PATIBANDLA RITHWIK,"8 Nov 2026, 2:23 pm IST",yes,https://github.com/INIT-TO-WIN-IT-PYMC/pymc/pymc/distributions/distribution.py,"So far, we have added a TensorVariable return-type annotation to DistributionMeta.__call__ in distribution.py and added regression tests in test_distribution.py. The runtime indexing works correctly, and 30 tests passed. However, two tests reported XPASS(strict) due to Windows-specific test markers. The main remaining task is to confirm that PyCharm no longer displays the false warning. We haven't completed that IDE verification yet, so the issue is partially resolved, with runtime behavior preserved.","Our implementation mostly followed the Round 2 plan, but we focused on adding type information to the shared DistributionMeta.__call__ method rather than changing individual distributions. During testing, we encountered MinGW compiler errors and Windows-specific XPASS(strict) failures, which required adjusting the test environment. Although runtime tests passed, the PyCharm warning remained unverified. This showed us that passing runtime tests alone is not enough to confirm a static typing fix.","The judge should activate the virtual environment and run python ISSUE_8306_PYCHARM_REPRO.py, followed by python -m pytest tests/distributions/test_distribution.py -q. On Windows, set PYTENSOR_FLAGS=""cxx="" first. Results: Runtime check passed, 30 tests passed, and 2 reported XPASS(strict). The final step is to verify that the original beta[0] warning disappears in PyCharm, which is still pending.",
+MIRAI,Sambhram Laxman Sattigeri,"8 Nov 2026, 1:46 pm IST",,https://github.com/Sambhram1087/jupyterlab/tree/fix-20372-reuse-path-session,"Fix for JupyterLab issue #20372: after a page reload, Restart Kernel restarts the wrong kernel.
+
+Root cause: for a notebook opened with ""Notebook (no kernel)"" (shouldReuse: false), the context has no session. When a kernel was selected, changeKernel() therefore called startNew() and renamed the new session onto the notebook's path, although the server already had a session for that path. Two sessions shared one path; after a reload the notebook attached to the older one, so Restart Kernel hit a different kernel than the one running the code.
+
+What works:
+- packages/apputils/src/sessioncontext.tsx: changeKernel() now calls a new private method, _connectToPathSession(), before _changeKernel(). If the context has no session, it refreshes the running sessions, finds the one whose path matches the notebook, and connects to it. The existing kernel-change code then changes that session's kernel, so no second session is created. If no session exists, the old creation path runs unchanged. If the refresh fails, it logs a warning and falls back to the old behaviour. About 30 added lines.
+- shouldReuse and the ""Notebook (no kernel)"" behaviour are untouched.
+- packages/apputils/test/sessioncontext.spec.ts: 9 new Jest tests (existing session reused; selecting the session's own kernel keeps it; stale session list; concurrent requests; no session on the path; different path not reused; reload reattaches to the new kernel; connection error; refresh failure). 5 of them fail without the fix and pass with it.
+
+In progress / not done:
+- No browser (Galata) test and no recorded demo yet.
+- Known limitation: two overlapping kernel requests could race on a session that was just renamed. Not mitigated.
+- Existing duplicate sessions are not repaired. A session that vanishes between lookup and kernel change shows the normal error dialog.
+- Open question for maintainers: choosing a kernel spec replaces the existing session's kernel (same as Change Kernel in other notebooks). Keeping it when the name matches is not implemented.
+
+AI assistance: Claude (Anthropic) helped with code analysis, the fix and the tests.","1. Where the Change Lives
+- Initially, I planned to implement the session lookup inside _changeKernel(), which would have required approximately 20 additional lines of code and an _isTerminating guard.
+- However, I moved the lookup into the public changeKernel() method and introduced a private helper function.
+- The reason was that _changeKernel() is also called during the automatic kernel startup when a notebook is opened. Implementing the lookup there would have introduced an unnecessary additional server request every time a notebook was opened.
+- I also discovered that the _isTerminating guard was unnecessary because a terminating context still has an associated session. Therefore, I removed it.
+2. Understanding Kernel Behaviour
+- Initially, I assumed that attaching to an existing session would automatically preserve its running kernel.
+- However, after examining the jupyter_server implementation and reproducing its REST API calls, I discovered that changing a session's kernel using a kernel specification name actually:
+  - Starts a new kernel.
+  - Shuts down the previously running kernel.
+- Therefore, the fix replaces the kernel when a different kernel is selected, consistent with the existing Change Kernel behaviour.
+- If the user selects the same kernel that the session is already using, the existing kernel is preserved.
+- I added separate tests to verify both behaviours.
+3. Additional Case Identified
+- During testing, I discovered another scenario that caused duplicate sessions.
+- Selecting Connect to Existing Kernel could also create a duplicate session, resulting in two sessions sharing the same kernel.
+- I extended the fix to handle this scenario and added a dedicated test to verify that duplicate sessions are not created.
+4. Additional Error Handling
+- I introduced an additional error-handling improvement that was not part of the original plan.
+- Previously, if refreshing the running sessions failed, it could prevent the kernel change from proceeding.
+- With the fix, a failed session refresh no longer blocks the kernel change.
+5. Failures and Dead Ends Encountered
+A. Initial Test Implementation
+- My first attempt at merging the test block failed to compile due to:
+  - An incorrect variable name.
+  - A missing IKernelConnection import.
+  - An attempt to modify a read-only property.
+- Additionally, some of the initial tests would have passed even without the fix, meaning they did not actually verify the bug was resolved.
+- I replaced them with tests designed to fail without the fix and pass with it.
+B. Testing Environment Limitations
+- In the sandbox used for AI-assisted development, the test server refused to start because it was running as root.
+- This required the --allow-root flag.
+- The Playwright browser download was also blocked by the environment.
+- Consequently, I could not run the Galata end-to-end tests.
+C. Incorrect Initial Reproduction Description
+- My initial explanation of the reproduction steps was inaccurate.
+- I originally described the loop as starting immediately, but after reviewing the original issue description, I confirmed that the loop actually starts after the second session is created.
+- I corrected the reproduction explanation to match the original issue.","Setup (Node + Python needed):
+  git clone https://github.com/Sambhram1087/jupyterlab.git
+  cd jupyterlab && git checkout fix-20372-reuse-path-session
+  pip install jupyterlab jupyter-builder     # provides the test server and jlpm
+  jlpm install
+
+Run the new tests:
+  cd packages/apputils
+  jlpm build:test
+  jlpm jest -i test/sessioncontext.spec.ts    # expected: 59 passed
+  (If running as root, the test server needs --allow-root.)
+
+See the tests fail without the fix:
+  git checkout main -- src/sessioncontext.tsx
+  jlpm build:test && jlpm jest -i test/sessioncontext.spec.ts    # expected: 5 failed
+  git checkout fix-20372-reuse-path-session -- src/sessioncontext.tsx && jlpm build:test
+
+Manual browser check (not yet automated):
+  1. Run JupyterLab from this branch (jlpm build, then jupyter lab --dev-mode).
+  2. Create loop.ipynb, wait for Idle, close the tab.
+  3. Right-click it > Open With > Notebook (no kernel).
+  4. Click ""No Kernel"", keep Python 3, press Select, run a long loop.
+  5. Running panel: one session for loop.ipynb (before the fix: two).
+  6. Reload, press Restart Kernel: the loop stops.
+
+Results (Linux sandbox, Node 22, jupyterlab 4.6.6) [add your own run here]:
+- New tests without the fix: 5 failed (""Expected length: 1, Received length: 2""; the reload test got the wrong kernel id).
+- With the fix: sessioncontext spec 59 passed.
+- Other suites passing: apputils 360 (1 pre-existing skip), docregistry 194, console 75, debugger 188 (2 skipped), docmanager 99, notebook 617, cells 147, outputarea 70, lsp 85, help-extension 11, metapackage 168 (1 skipped).
+- Type check (jlpm build:test) OK; Prettier OK; ESLint 0 errors.
+- Not run: browser/Galata tests, repo-wide lint, full repo test suite.",https://drive.google.com/drive/folders/1eDxs0VYv8Bpk513SW8bP1jB5QzrRf4kL
+Nanosoft,Laksh Praveen Patil,"8 Nov 2026, 1:41 pm IST",,https://github.com/laksh-p-patil/sympy/tree/15-hadamard-fallback(Maitreya),"We fixed the Hadamard product differentiation issue in SymPy by removing an unnecessary specialised handler that was raising NotImplementedError. This allows the existing general MatrixExpr handler to process Hadamard products.
+
+We also added regression tests covering direct differentiation, nested matrix operations, repeated factors, non-square matrices, vectors and symbolic dimensions.
+
+The main code change is in arrayexpr_derivatives.py, with additional tests in the array and matrix derivative test files.","Our approach changed slightly after understanding how SymPy's dispatch system works. Initially, the problem appeared to require implementing a new differentiation rule. However, we discovered that the general MatrixExpr handler already supported the required behaviour.
+
+Instead of adding duplicate logic, we removed the specialised handler that was blocking it. This made the fix smaller and simpler than initially expected.","Run these commands from the SymPy repository root:
+
+Array derivative tests:
+pytest -q sympy/tensor/array/expressions/tests/test_arrayexpr_derivatives.py -k hadamard
+
+Matrix derivative tests:
+pytest -q sympy/matrices/expressions/tests/test_derivatives.py -k hadamard
+
+We verified the fix by comparing symbolic differentiation results against independent entry-by-entry differentiation using derive_by_array.
+
+The four focused regression tests reproduced the original failure before the fix and passed afterwards. An additional matrix derivative test was added, and 1,092 existing tensor and matrix tests were also reported as passing.",https://github.com/laksh-p-patil/sympy/tree/15-hadamard-fallback(Maitreya)
+"RAM for me, not for thee",Aniket K B,"8 Nov 2026, 2:08 pm IST",yes,https://github.com/bhargavaa-g/threadx/tree/issue-585-elf32,"We implemented ELF32 little-endian parsing for both module converter tools using fixed-width types and explicit byte decoding. Added input bounds checks, header validation, safer cleanup, compile-time structure-size checks compatible with C99, and regression tests.
+
+Valid inputs convert to binary or C-array output, and malformed inputs are rejected. Target-machine validation for e_machine remains unfinished; the parser decodes the field but does not enforce a specific architecture.","Our plan used _Static_assert for compile-time size checks, but the project builds as C99, where that syntax isn’t supported. We switched to a C99-compatible typedef array-size check that makes compilation fail if an ELF structure has the wrong size.",https://docs.google.com/document/d/19U9uNcRZ8nxyY5OsScYqIZUblecu7yh-KiVe43n9f9Y/edit?usp=sharing,https://drive.google.com/drive/folders/1-717-yVBiul7tpWoPQbeeNmXZexUx02P?usp=sharing
+SAYA,Arushi Garg,"8 Nov 2026, 1:48 pm IST",,https://github.com/arushigarg2709-git/sympy/tree/fix/eigenvals-missing-multiplicity-jordan,"We successfully fixed both major defects identified in SymPy Issue #30900 and developed a complete testing and demonstration suite to verify our improvements.
+
+1. Defect M3-1 – Eigenvalue Multiplicity Loss
+
+We modified sympy-to prevent eigenvalue multiplicities from being overwritten during simplification. Instead of replacing duplicate values, our updated implementation adds their multiplicities together. This ensures that the total multiplicity is preserved and equals the matrix dimension. We also updated the simplification handling in _eigenvects_sympy.
+
+2. Defect M3-2 – Incorrect Jordan Basis*
+
+We improved the Jordan form implementation by identifying mathematically equivalent eigenvalues, even when their expressions are written differently. We also added a full-rank check to ensure that the basis matrix is valid and non-singular. This helps ensure the correctness of the similarity transformation.
+
+3. Regression Testing and Verification*
+
+We added three new test cases in sympy/matrices/tests/test_eigen.py to cover multiplicity preservation, Jordan form behaviour, and edge cases.
+
+Our test results were:
+- 22 tests passed.
+- 3 tests deselected.
+- 1 test xfailed (expected failure).
+- Total execution time: 17 seconds.
+
+4. Interactive Presentation Dashboard*
+
+We developed an interactive Streamlit application that allows users to compare the original and improved implementations. It includes:
+- Side-by-side eigenvalue comparisons.
+- An eigenvalue collision tracer.
+- Interactive mathematical visual effects.
+- An in-memory test runner.
+
+The dashboard is deployed and accessible here:
+
+https://match-zero-sympy-30900.streamlit.app
+
+5. Additional Verification Tools*
+
+We also created:
+- verify_integration.py – a lightweight command-line tool to verify the integration.
+- MATCH_ZERO_LIVE_INSPECTOR.ipynb – a Google Colab notebook for running the interactive inspection.
+
+Overall, our work addresses both defects, adds regression tests to prevent similar issues, and provides interactive tools to demonstrate and verify the improvements.","1. Fast-Path Jordan Validation: In Round 2, our conceptual proposal considered `len(blocks) == mat.cols` to decide diagonalizability. Code inspection revealed `blocks` in SymPy stores eigenvalue instances, not block objects. We adapted our implementation to collect independent nullspace basis vectors first (`len(jordan_basis) == mat.cols`) and added a strict rank verification guard (`basis_mat.rank() == mat.cols`) before returning, falling back cleanly to full generalized eigenvector chain computation if the matrix is defective.
+
+2. Minimal Symbolic Disturbance: Rather than forcibly rewriting all symbolic eigenvalues into a canonical representation (which could alter user-expected expressions or cause performance regressions), we implemented a zero-difference equivalence check `_iszero(_simplify(eigenvalue - existing)) is True`. This preserves the original expression representations while accurately accumulating multiplicities.
+
+3. Cloud Container & Shallow Clone Resilience: Streamlit Cloud and CI runners perform shallow Git checkouts (`--depth=1`) without release tags, causing SymPy's default `release.py` to raise an `ImportError`. We created `sympy/_version.py` and added a graceful development version fallback in `sympy/release.py` to guarantee zero-crash execution across any cloud environment.","Judges can test and verify our solution through four distinct methods:
+
+1. Live Interactive Web Dashboard (Zero Setup):
+Open our live hosted Streamlit app:
+https://match-zero-sympy-30900.streamlit.app
+Judges can compare upstream vs fixed eigenvalues, trace dictionary collisions step-by-step, and trigger the instant in-memory test runner.
+
+2. One-Click Google Colab Cloud Verification:
+Execute our interactive Colab notebook in the cloud with 1 click:
+https://colab.research.google.com/github/arushigarg2709-git/sympy/blob/fix/eigenvals-missing-multiplicity-jordan/MATCH_ZERO_LIVE_INSPECTOR.ipynb
+
+3. Instant Terminal Integration Runner (<2 seconds):
+From the repository root, run:
+python verify_integration.py
+(Directly tests Matrix.eigenvals(simplify=True) multiplicity conservation, Matrix.jordan_form() invertibility det(P)!=0, and executes pytest).
+
+4. Official Pytest Regression Suite:
+python -m pytest -q sympy/matrices/tests/test_eigen.py
+Result: 22 passed, 3 deselected, 1 failed in ~17.35s.
+All quality checks pass: ruff check sympy (0 errors).",https://match-zero-sympy-30900.streamlit.app/
+Spacin'  Out,Sion Aaron Lobo,"8 Nov 2026, 2:03 pm IST",yes,https://github.com/sionnn9/WLED/blob/main/wled00/wled.cpp#L772,"We implemented a fix for the ESP32-C5 crash reported in WLED issue #5945. The crash could happen when changing Wi‑Fi from “both bands” to “5 GHz only,” because mDNS could still use a Wi‑Fi network interface after WLED tore it down.
+
+The main change is in wled00/wled.cpp, inside initConnection(). Before WLED disconnects or tears down Wi‑Fi, it now checks whether mDNS is active and stops it:
+
+if (interfacesInited && strlen(cmDNS) > 0) {
+  DEBUG_PRINTLN(F(""[FIX] stopping mDNS before Wi-Fi teardown""));
+  MDNS.end();
+}
+This prevents mDNS from using a netif after WLED frees it. WLED’s existing reconnect code then restarts mDNS and re-registers its HTTP and WLED services.
+
+What works
+WLED now stops mDNS before Wi‑Fi teardown when mDNS is active.
+
+The guard prevents unnecessary MDNS.end() calls when mDNS is already stopped.
+
+WLED’s existing initInterfaces() restarts mDNS after reconnecting.
+
+The fix preserves HTTP and WLED mDNS service registration.
+
+A temporary test harness reproduces the crash path repeatedly.
+
+A diagnostic confirms whether the ESP32-C5 Wi‑Fi driver accepts WIFI_BAND_MODE_5G_ONLY.
+
+Key changes in the code
+Main fix
+Added at the beginning of initConnection():
+
+if (interfacesInited && strlen(cmDNS) > 0) {
+  DEBUG_PRINTLN(F(""[FIX] stopping mDNS before Wi-Fi teardown""));
+  MDNS.end();
+}
+This changes the order from:
+
+mDNS active
+Wi‑Fi netif freed
+mDNS touches freed netif
+crash
+
+to:
+
+mDNS active
+mDNS stopped
+Wi‑Fi netif freed
+reconnect
+mDNS restarted
+Why the guard matters
+
+interfacesInited
+means the network interfaces, including mDNS, are active.
+
+strlen(cmDNS) > 0
+means WLED has an mDNS hostname configured.
+
+Together, they ensure MDNS.end() runs only when mDNS is actually running.
+
+Why we did not manually restart mDNS
+We initially considered calling:
+
+MDNS.begin(cmDNS);
+after reconnecting, but removed it because WLED’s existing initInterfaces() already performs the complete restart:
+
+MDNS.end();
+MDNS.begin(cmDNS);
+MDNS.addService(""http"", ""tcp"", 80);
+MDNS.addService(""wled"", ""tcp"", 80);
+MDNS.addServiceTxt(""wled"", ""tcp"", ""mac"", escapedMac.c_str());
+A bare MDNS.begin() would restart the responder but not re-register WLED’s services. That could break discovery in Home Assistant or the WLED app.","Our original plan was to reproduce the crash and then investigate whether mDNS was using a freed netif. That part stayed the same.
+
+The main change was that we first added a temporary test harness to make the intermittent crash repeatable. Without it, the crash happened only sometimes. The harness forced WLED through the same mDNS-active teardown path 10 times.
+
+We also initially planned to manually restart mDNS after reconnecting. We removed that idea because WLED already has a complete mDNS restart path in initInterfaces(). Manually calling MDNS.begin() could restart mDNS without re-registering WLED’s services.
+
+Another change was adding a direct diagnostic for esp_wifi_set_band_mode(). This was not in the original plan, but it helped us confirm whether the emulator’s C5 Wi‑Fi driver accepted and retained the 5 GHz-only request.","Build
+Clone your fork.
+
+Check out the branch containing the fix.
+
+Build WLED for esp32c5.
+
+Flash it to an ESP32-C5 or run it in ESP-EMU.
+
+Test with ESP-EMU
+Open the WLED firmware in ESP-EMU.
+
+Wait for boot.
+
+The temporary harness automatically configures:
+
+
+SSID: myssid
+Password: mypassword
+Wait until WLED connects and mDNS starts.
+
+The harness switches to 5 GHz-only.
+
+WLED tears down Wi‑Fi and reconnects.
+
+The harness returns to AUTO.
+
+Repeat for 10 cycles.
+
+Test results
+Before the fix
+
+Cycle 1: passed
+Cycle 2: crashed
+Crash type:
+
+
+Load access fault
+Crash location:
+
+mDNS / netif functions
+After the fix
+text
+Cycle 1: passed
+Cycle 2: passed
+Cycle 3: passed
+
+Cycle 10: passed
+No crash occurred.",https://github.com/sionnn9/WLED/blob/main/README-MACHZERO.md#video-evidence
+T0RU5,Charrak Jain,"8 Nov 2026, 2:08 pm IST",yes,https://github.com/Cypher-Monarch/sympy_t0ru5,"So far, we have been able to successfully find the code snippet causing the issue and successfully fixed it. The problematic bits were in the function.py submodule from `core/` as we initially suspected, where the collision statements in the `Subs.__new__()` method were not strict enough, the actual implementation details are at `https://github.com/Cypher-Monarch/sympy_t0ru5/blob/fix/derivative-composite-argument-symbols/ReadMe-MachZero-Team16.md`","We did not find any leads in Derivatives as to how ""symbols(_x + y)"" was being created. So we investigated doit() and how it interacts with Derivatives, but that was unrelated to the original problematic output. So we dug deeper, reaching the part where expressions were evaluated, and found the problem in the comparison there.","1. python -m venv .venv
+2. git checkout master
+3. pip install -e .[dev]
+4. Run the following code from within the venv:
+
+```
+import sympy as sp
+
+x, y = sp.symbols('x y')
+f = sp.Function('f')
+
+# reproduce the issue with multiple composite function arguments
+expr = f(x + y, x*y)
+result = expr.diff(y).diff(x)
+
+expected_symbols = {x, y}
+actual_symbols = result.free_symbols
+unexpected_symbols = actual_symbols - expected_symbols
+
+print(f""SymPy version: {sp.__version__}"")
+print(f""Input:         {expr}"")
+print(f""Result:        {result}"")
+print(f""Free symbols:  {actual_symbols}"")
+
+print(""\n--- Regression check ---"")
+print(f""Expected:      {expected_symbols}"")
+print(f""Unexpected:    {unexpected_symbols}"")
+
+if unexpected_symbols:
+    print(""FAIL: Unexpected free symbols detected!"")
+else:
+    print(""PASS: No unexpected free symbols."")
+```
+
+5. git switch fix/derivative-composite-argument-symbols
+6. Run the above code snippet again and compare the two outputs for the difference made",https://drive.google.com/file/d/1w2Dcx2ByTa6q2uNmDeRX6UFtm59Cm2r6/view?usp=drive_link               https://drive.google.com/file/d/1eRYqtPIj44haNL9IxYy_qEaGJN19MYwx/view?usp=sharing
+Team Deadlock,Mohith Gowda DB,"8 Nov 2026, 1:50 pm IST",,https://github.com/mohithgowdadb/env-override-0/tree/fix/runtime-config-env-cast,"We resolved Nuxt Issue #36846 (""Nuxt 5: env overrides of runtime config are no longer cast""), bringing back seamless, automatic type casting for environment variables across Nuxt 5 while eliminating the security and corruption hazards of old destr.
+
+Key Changes & Architecture:
+1. modifiedDestr Engine:
+   - Designed a robust, safe parser that supresses Nitro 3's raw string overrides.
+
+
+2. Enabled by Default with Zero Breaking Changes:
+   - Enabled by default (experimental.runtimeConfigEnvTypes: true in packages/schema/src/config/experimental.ts).
+   - Preserved developer choice: developers needing Nitro 3's raw string behavior can simply opt out with experimental.runtimeConfigEnvTypes: false.
+
+
+
+What Works:
+- 100% of env type casting (boolean, number, object, array, string) works out-of-the-box.
+- 32 comprehensive Vitest unit tests passing across packages/kit and packages/nitro-server.
+- Interactive production prototype deployed on Vercel demonstrating live casting, token preservation, and flag toggling.","1. Discarded Naive destr Restoration:
+   - Original plan: Reintroduce destr directly into useRuntimeConfig().
+   - Why it changed: destr has critical edge-case flaws in production—scientific notation strings like API key ""4848e0"" cast to number 4848, leading zeros get stripped (""0123"" -> 123), and large numbers lose precision. We replaced it with a dedicated modifiedDestr algorithm that rigorously validates strings before casting.
+
+2. Added Zero-Config Auto-Discovery:
+   - Original plan: Only cast variables that were already defined in nuxt.config.ts runtimeConfig.
+   - Why it changed: Developers frequently rely on pure .env files without pre-declaring empty placeholders in nuxt.config.ts. We enhanced applyRuntimeConfigEnvTypes to inspect process.env for NUXT_* prefixes and dynamically merge them into the runtime config object.","A. Run Unit Test Suites (Passes 32/32 tests):
+1. Install dependencies:
+   pnpm install
+2. Run Kit runtime config tests:
+   pnpm --filter @nuxt/kit test test/runtime-config.test.ts
+3. Run Nitro Server runtime config tests:
+   pnpm --filter @nuxt/nitro-server test test/runtime-config-env.test.ts
+
+B. Test Results Summary:
+- packages/kit/test/runtime-config.test.ts: 17 passed (17 total)
+  - Default casting of NUXT_ boolean, number, json, and array strings.
+  - Opt-out behavior when runtimeConfigEnvTypes: false (preserves raw strings).
+  - modifiedDestr edge cases: ""4848e0"", leading zeros, and prototype pollution guards.
+- packages/nitro-server/test/runtime-config-env.test.ts: 15 passed (15 total)
+  - Server runtime environment variable auto-discovery.
+  - Server-side useRuntimeConfig() resolution under SSR.
+
+C. Run the Playground Locally:
+1. cd playground
+2. pnpm dev
+3. Visit http://localhost:3000 to interact with the live inspection cards, the flag toggle switch, and the built-in system flow chart.",https://playground-dusky-kappa.vercel.app/
+The Merge Conflicts,Akarsh Jithin Raju,"8 Nov 2026, 1:53 pm IST",,https://github.com/Akarsh-Raju/uv,"WHAT WORKS
+A working prototype of RECORD verification and repair for uv, tested on Windows in hardlink mode:
+- record.rs: RecordEntry::matches_file checks one installed file against its RECORD entry (skips entries without a hash, size check first, then SHA-256; a missing file is a mismatch; unreadable files are not flagged).
+- satisfies.rs: new RequirementSatisfaction::Modified result, a verify parameter on check(), and a helper that reads the package's RECORD and checks each file.
+- plan.rs: new Modified branch that warns, removes the package from the cache (so the corrupted hardlinked file is not reused) and queues a reinstall.
+- site_packages.rs: the two other callers pass verify = false and treat Modified as unsatisfied.
+End-to-end result: with two projects sharing a cache, a tampered file is detected, the cache entry is removed, a re-sync downloads a fresh copy, and the marker line is gone from both projects.
+
+IN PROGRESS
+- Making verification opt-in. In the prototype the flag was hardcoded on; on the current branch it is hardcoded off so the existing test suite is unaffected. The real --verify flag (uv-cli -> settings -> Planner) is not wired yet.
+- Getting the fork's CI green.
+
+NOT DONE YET
+- The --verify flag and automated integration/unit tests
+- One-step repair for the uv pip sync path (currently detect, then run again with --reinstall-package)
+- Removing only the corrupted cache entry instead of the whole package entry
+- Testing uv sync in project mode and packages with console scripts
+- Documentation, and discussing the design with the uv maintainers before any upstream PR","'- The plan said ""opt-in""; the first implementation hardcoded verification ON to prove the idea. The fork's CI then failed an existing snapshot test (sync_git_metadata_archive_dependency) because every sync now ran the check. This confirmed that it must be off by default, so it is currently set to off until the flag exists.
+- Clippy failed because uv bans std::fs::File (it requires fs_err so errors include file paths). Switched to fs_err::File in record.rs and satisfies.rs.
+- We planned a one-command repair. In the uv pip sync path the resolver returns the already-installed package, so repair currently takes two commands (detect and clear the cache, then --reinstall-package). We kept it and documented it as a known limitation.
+- Cache removal is by package name, which can also delete a healthy entry (seen when repairing the second project). Harmless but wasteful; improvement planned.
+- We had to handle the new Modified result in site_packages.rs too. The compiler forced this because the match must cover every variant.
+- The hash is computed with a manual read loop instead of io::copy, since the SHA-256 hasher does not implement io::Write.
+- Dead ends: assuming Linux used hardlinks by default; a first repair that did not remove the cache entry; Windows Smart App Control blocking rebuilt binaries.","Requirements: Rust toolchain, Windows (hardlink is the default link mode; on Linux/macOS set UV_LINK_MODE=hardlink).
+
+Note: the main branch has the check switched off (to keep CI green until the opt-in flag exists). Use the branch [PROTOTYPE-BRANCH-WITH-CHECK-ON] to see the fix working.
+
+1. git clone https://github.com/[YOUR-USERNAME]/uv  and  git checkout [PROTOTYPE-BRANCH-WITH-CHECK-ON]
+2. cargo build   (binary: target\debug\uv.exe)
+3. In a scratch folder (not inside the repo):
+   $uv = ""<path to>\target\debug\uv.exe""
+   $env:UV_LINK_MODE = ""hardlink""
+   & $uv cache clean tqdm
+4. Reproduce the bug: create project_a and project_b with their own venvs, install tqdm in both, append a marker line to tqdm\cli.py in project_a, then search for the marker in project_b (it is there too) and compare Get-FileHash of both files and the cache copy (all identical).
+5. Run the fix for each project:
+   & $uv pip sync req.txt --python <project>\.venv\Scripts\python.exe -v
+   -> expect ""Installed files for `tqdm` do not match RECORD"" and ""Removing dangling cache entry""
+   & $uv pip sync req.txt --python <project>\.venv\Scripts\python.exe --reinstall-package tqdm
+   -> expect a real download and the marker gone.
+6. Check: Select-String for the marker in both projects prints nothing, and the hashes of both files and the cache copy are equal again.
+
+TESTS RUN SO FAR (from the Round 2 plan)
+- Manual reproduction on stock uv: bug confirmed (marker in both projects and the cache, identical hashes).
+- Manual end-to-end test on the prototype with two packages (six and tqdm): detection, cache removal, fresh download and repair confirmed in both projects.
+- Fork CI: clippy and one existing snapshot test failed with the check hardcoded on; fixed by using fs_err and switching the check off by default. [Update with the latest CI result after pushing.]
+- Automated tests for the new behavior are not written yet.",https://drive.google.com/drive/folders/1iRWtV6B7YPxv44CPGBRDYYU76YWQjf6z
+The Sili-Cons,Suraj Manoj Nair,"8 Nov 2026, 2:12 pm IST",yes,https://github.com/SurajMN7/cocotb_the_silicons,"So far, we have altered the pytest_sessionstart and pytest_sessionfinish functions inside the logging class to appropriately handle and track the creation of filters and restore the original factory respectively.","From Round two, the changes we have added are modifying the pytest_sessionfinish function to handle the cleanup as well as the altering of the SimContextFIlter to handle the","Run the tests_logging_cleanup.py file (in the tests/pytest_plugin folder) to view. Our alterations led to 98 passed 7 skipped, 20 failed. In round two we didn't have working code to run the pytest modules on.",
+Txet,Yashas C,"8 Nov 2026, 1:52 pm IST",,https://github.com/Pradhyut21/jupyterlab/tree/session-identity-affinity,"We implemented a change that helps a notebook reconnect to its previous kernel after a page reload, even when multiple sessions share the notebook’s path.
+
+In packages/notebook-extension/src/index.ts, we added the current kernel ID to the notebook’s restoration arguments. We also update the saved arguments whenever that kernel ID changes.
+
+In packages/apputils/src/sessioncontext.tsx, initialization now prefers a session matching both the notebook path and the requested kernel ID. If no preferred match exists, it keeps the existing first-session fallback. We also preserve the preferred kernel name during startup when a remembered kernel ID is no longer available.
+
+The code and regression tests are committed and pushed. The tests passed, but direct browser validation of reload and Restart Kernel is still pending. Duplicate sessions can still remain; our change focuses on choosing the intended kernel rather than removing duplicates.","We followed the main Round 2 plan of carrying kernel identity through the existing restoration process. We used the existing kernel-preference ID field instead of adding a separate session-ID preference.
+
+The architecture diagram describes a broader state machine, including exact session-ID restoration and explicit handling of ambiguous sessions. We did not implement all those branches. We kept the first-session fallback to limit the change and preserve existing behavior when no preferred kernel matches.
+
+During development, we encountered slow test-server startup, Windows symlink errors, and a missing hatchling build dependency. We adjusted the local startup timeout for the comparison, enabled symlink support for the source-code push, and installed the missing dependency. We also learned to rebuild the package before testing because Jest loads compiled code.","""git clone --branch session-identity-affinity https://github.com/Pradhyut21/jupyterlab.git
+cd jupyterlab
+python -m pip install -e "".[dev,test]""
+jlpm
+jlpm build
+jlpm build:testutils
+cd packages/apputils
+jlpm build:test
+jlpm test test/sessioncontext.spec.ts ""
+
+ To launch the development build, return to the repository root and run:
+""python -m jupyterlab --dev-mode""
+
+
+We added two regression tests: one checks that initialization selects the preferred kernel’s session, and the other checks the preferred kernel name when its remembered ID is unavailable. Both failed on assertions against the baseline and passed with our fix.
+
+We also ran two integration scenarios using real SessionContext objects and a Jupyter Server. These simulated reload after kernel selection and reload after two contexts shut down and reselected their kernels. Both passed on our branch.
+
+The complete sessioncontext.spec.ts suite passed all 52 tests. The additional TypeScript lint check completed with zero errors and existing warnings. Browser testing remains necessary because the integration scenarios do not exercise the complete notebook restoration interface.",demo:   https://colab.research.google.com/drive/1CQw_IiaYz99Q_fFM93mdCtde8ZZ42U8g?usp=sharing         video :https://drive.google.com/file/d/1H9H9xNwdi_0fVOan1NErcpkA7q3WNx-9/view?usp=sharing
+VOIDRAX,NIRANDEV C M,"8 Nov 2026, 1:57 pm IST",,https://github.com/NIRANDEV09/biome/tree/fix/10784-parameters-overload,"We have implemented a production-level fix for Biome issue #10784 in crates/biome_js_analyze/src/lint/style/use_unified_type_signatures.rs. At the beginning of Rule::action(), the analyzer checks state.parameters_to_merge and immediately returns None if any parameter requires the MergeParameterOperation::MakeOptional operation, preventing an unsafe code action before any syntax mutation is created. The diagnostic functionality remains unchanged, so developers still receive the warning, “This overload signature can be combined with a similar one,” while unsafe automatic fixes are suppressed. At the same time, safe automated fixes are preserved: overloads with union-compatible parameter types can still be merged, identical duplicate signatures can still be removed, and overloads containing parameters that were already optional can still receive safe cleanup fixes. We have also added a dedicated regression test fixture at crates/biome_js_analyze/tests/specs/style/useUnifiedTypeSignatures/issue_10784.ts, along with its snapshot and updates to invalid.ts.snap, covering the affected upstream cases. For release preparation, we added an official Biome changeset at .changeset/fix-10784-use-unified-type-signatures.md with patch release metadata. We deliberately avoided implementing full semantic type synthesis across separate modules because Biome is primarily a syntactic linter rather than a complete TypeScript type checker; suppressing only the unsafe code action while retaining the diagnostic is a focused solution that fits Biome's architecture.","During Round 2, we initially considered suppressing fixes whenever two overloads had different parameter counts, but testing revealed that this approach would also block safe fixes. For example, in update(id: number) and update(id: number, name?: string), the second parameter is already optional, so the merge does not introduce a new optional parameter and the cleanup remains safe. We therefore changed the approach to check specifically for MergeParameterOperation::MakeOptional, which prevents only the unsafe mutation while preserving safe fixes.","Prerequisites
+Git
+Rust toolchain (cargo 1.85+)
+Node.js & npm (for tsc)
+Step 1: Clone and Checkout Branch
+bash
+git clone https://github.com/NIRANDEV09/biome.git
+cd biome
+git checkout fix/10784-parameters-overload
+Step 2: Run the Focused Regression Test Suite (~0.6s)
+powershell
+$env:RUSTFLAGS=""-C link-arg=/STACK:16777216""
+cargo test -p biome_js_analyze use_unified_type_signatures
+
+Expected Output:
+
+text
+running 11 tests
+test specs::style::use_unified_type_signatures::valid_jsdoc_options_json ... ok
+test specs::style::use_unified_type_signatures::valid_params_options_json ... ok
+test specs::style::use_unified_type_signatures::invalid_jsdoc_options_json ... ok
+test specs::style::use_unified_type_signatures::invalid_params_options_json ... ok
+test specs::style::use_unified_type_signatures::valid_ts ... ok
+test specs::style::use_unified_type_signatures::issue_10784_ts ... ok
+test specs::style::use_unified_type_signatures::valid_params_ts ... ok
+test specs::style::use_unified_type_signatures::valid_jsdoc_ts ... ok
+test specs::style::use_unified_type_signatures::invalid_params_ts ... ok
+test specs::style::use_unified_type_signatures::invalid_jsdoc_ts ... ok
+test specs::style::use_unified_type_signatures::invalid_ts ... ok
+test result: ok. 11 passed; 0 failed; 0 ignored; finished in 0.56s
+Step 3: Verify with the Official TypeScript Compiler (tsc --noEmit)
+bash
+npx -p typescript tsc --noEmit crates/biome_js_analyze/tests/specs/style/useUnifiedTypeSignatures/issue_10784.ts
+
+Expected Output:
+
+Exit code 0 (Clean compilation, zero errors, proving that Parameters<Api[""run""]> retains exact type safety).
+Step 4: Verify Full Style Rule Suite (Zero Regressions)
+powershell
+cargo test -p biome_js_analyze specs::style
+
+Expected Output:
+
+test result: ok. 795 passed; 0 failed; 0 ignored; finished in 11.5s
+Step 5: Rust Compiler Quality & Formatting
+powershell
+cargo clippy -p biome_js_analyze -- -D warnings
+rustfmt --check crates/biome_js_analyze/src/lint/style/use_unified_type_signatures.rs
+
+Expected Output:
+
+Exit code 0 (0 warnings, 0 formatting diffs).",https://drive.google.com/drive/folders/1zYpnYzPD83UN41IMElvoOTeYyq8xI0He?usp=drive_link
